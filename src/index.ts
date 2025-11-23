@@ -142,8 +142,9 @@ app.get('/get-next-sms-simple', (req: Request, res: Response) => {
     }
 });
 
-// Mark SMS as sent endpoint
-app.post('/mark-sent', (req: Request, res: Response) => {
+// Mark SMS as sent endpoint - UPDATED to support both POST and GET
+app.route('/mark-sent')
+  .post((req: Request, res: Response) => {
     try {
         const { sms_id, success, error } = req.body;
 
@@ -159,7 +160,7 @@ app.post('/mark-sent', (req: Request, res: Response) => {
                 smsQueue[sms_id].error = error;
             }
 
-            console.log(`[MARK] SMS ${sms_id} marked as ${success ? 'sent' : 'failed'}`);
+            console.log(`[MARK-SENT] SMS ${sms_id} marked as ${success ? 'sent' : 'failed'}`);
 
             res.status(200).json({
                 success: true,
@@ -179,7 +180,43 @@ app.post('/mark-sent', (req: Request, res: Response) => {
             error: error instanceof Error ? error.message : String(error)
         });
     }
-});
+  })
+  .get((req: Request, res: Response) => {
+    try {
+        const { sms_id, success } = req.query;
+
+        if (!sms_id) {
+            return res.status(400).json({ error: 'Missing sms_id' });
+        }
+
+        const smsIdStr = String(sms_id);
+        const isSuccess = String(success).toLowerCase() === 'true';
+
+        if (smsQueue[smsIdStr]) {
+            smsQueue[smsIdStr].status = isSuccess ? 'sent' : 'failed';
+            smsQueue[smsIdStr].sent_at = new Date().toISOString();
+
+            console.log(`[MARK-SENT] SMS ${smsIdStr} marked as ${isSuccess ? 'sent' : 'failed'}`);
+
+            res.status(200).json({
+                success: true,
+                message: `SMS marked as ${isSuccess ? 'sent' : 'failed'}`
+            });
+        } else {
+            res.status(404).json({
+                success: false,
+                error: 'SMS ID not found'
+            });
+        }
+
+    } catch (error) {
+        console.error(`[ERROR] mark_sent GET: ${error}`);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : String(error)
+        });
+    }
+  });
 
 // Queue status endpoint (for debugging)
 app.get('/queue-status', (req: Request, res: Response) => {
